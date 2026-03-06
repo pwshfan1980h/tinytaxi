@@ -29,6 +29,8 @@ Update 2026-03-06:
 - Reworked mid-deck pad placement to sit outside building faces and added a collision grace lane while approaching mid decks.
 - Added landing grades (`F` through `S`) with HUD feedback and reward tones, clearer taxi/lives readout in the in-canvas HUD, and heavier crash/game-over audio.
 - Added overall run grading to the game-over flow plus a retry action inside the modal.
+- Clarified fuel onboarding with explicit attract/HUD copy that teal-lit pads auto-refuel while docked and spend score credits.
+- Added a throttled low-fuel alarm plus a distinct out-of-fuel warning tone using the existing Web Audio path.
 
 Validation 2026-03-06:
 - `npm run build --workspace client` OK
@@ -36,6 +38,8 @@ Validation 2026-03-06:
 - Mobile layout capture (`output/full-ui-after-mobile.png`) OK
 - Storm, fuel, moons capture (`output/web-game-final-pass/shot-0.png`, `state-0.json`) OK
 - Forced game-over modal capture (`output/gameover-modal-after.png`) OK
+- Fuel instructions attract capture (`output/web-game-fuel-instructions/shot-0.png`, `state-0.json`) OK
+- Long-thrust low-fuel pass (`output/web-game-low-fuel/shot-0.png`, `state-0.json`) OK
 
 TODO:
 - Manually flight-test at least one mid-deck landing from a natural approach; the geometry and collision path are fixed in code, but I did not complete a clean live landing during this handoff.

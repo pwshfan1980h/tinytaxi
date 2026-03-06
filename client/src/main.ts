@@ -14,9 +14,9 @@ const DESCENT_ASSIST = 205;
 const DRAG = 0.993;
 const MAX_LIVES = 3;
 const MAX_FUEL = 100;
-const FUEL_BURN_UP = 13.5;
-const FUEL_BURN_SIDE = 5.5;
-const FUEL_BURN_DESCENT = 4.5;
+const FUEL_BURN_UP = 9.5;
+const FUEL_BURN_SIDE = 3.9;
+const FUEL_BURN_DESCENT = 3.1;
 const REFUEL_RATE = 22;
 const FUEL_COST_PER_UNIT = 2;
 const LANDING_SPEED_X = 42;
@@ -592,6 +592,7 @@ class Game {
   private refuelDebt = 0;
   private fuelWarningStage = 0;
   private noFuelWarningCooldown = 0;
+  private lowFuelAlarmCooldown = 0;
   private landingGradeFlash: LandingGrade | null = null;
   private landingGradeFlashTtl = 0;
   private landingGradeTotal = 0;
@@ -875,6 +876,7 @@ class Game {
     this.refuelDebt = 0;
     this.fuelWarningStage = 0;
     this.noFuelWarningCooldown = 0;
+    this.lowFuelAlarmCooldown = 0;
     this.landingGradeFlash = null;
     this.landingGradeFlashTtl = 0;
     this.landingGradeTotal = 0;
@@ -900,6 +902,7 @@ class Game {
     this.flash = Math.max(0, this.flash - dt * 1.3);
     this.taxi.invulnerable = Math.max(0, this.taxi.invulnerable - dt);
     this.noFuelWarningCooldown = Math.max(0, this.noFuelWarningCooldown - dt);
+    this.lowFuelAlarmCooldown = Math.max(0, this.lowFuelAlarmCooldown - dt);
     this.landingGradeFlashTtl = Math.max(0, this.landingGradeFlashTtl - dt);
     if (this.landingGradeFlashTtl <= 0) {
       this.landingGradeFlash = null;
@@ -923,6 +926,7 @@ class Game {
     this.updateDustDevils(dt);
     this.updateFares(dt);
     this.updateTaxi(dt);
+    this.updateLowFuelAlarm();
     this.cameraX = clamp(
       lerp(this.cameraX, this.taxi.x - CANVAS_WIDTH * 0.35, 0.1),
       0,
@@ -1314,12 +1318,24 @@ class Game {
     return this.structures.pads.find((pad) => pad.id === id) ?? null;
   }
 
+  private targetWaitingFares() {
+    if (this.deliveriesCompleted <= 0) {
+      return 1;
+    }
+    if (this.deliveriesCompleted <= 2) {
+      return 2;
+    }
+    return 3;
+  }
+
   private fillFareBoard() {
-    while (this.waitingFares.length < 3) {
-      const fare =
-        this.waitingFares.length === 0 && !this.onboardFare
-          ? createStarterFare(this.fareSequence, this.structures.pads)
-          : createFare(this.fareSequence, this.structures.pads);
+    const targetWaitingFares = this.targetWaitingFares();
+    while (this.waitingFares.length < targetWaitingFares) {
+      const shouldCreateStarterFare =
+        this.fareSequence === 1 && this.waitingFares.length === 0 && !this.onboardFare;
+      const fare = shouldCreateStarterFare
+        ? createStarterFare(this.fareSequence, this.structures.pads)
+        : createFare(this.fareSequence, this.structures.pads);
       this.fareSequence += 1;
       const clashesWithActive = this.onboardFare
         ? fare.originPadId === this.onboardFare.destinationPadId
@@ -1381,25 +1397,52 @@ class Game {
       return;
     }
     this.noFuelWarningCooldown = 1.8;
+    this.playTone(320, 0.18, "square", 0.04, 220);
+    this.playTone(220, 0.22, "square", 0.035, 160, 0.16);
     this.pushAnnouncement("Fuel cells dry. Glide to a fuel station.", "danger", 2.6);
   }
 
   private updateFuelWarnings() {
     if (this.taxi.fuel <= 15 && this.fuelWarningStage < 2) {
       this.fuelWarningStage = 2;
+      this.lowFuelAlarmCooldown = 0;
       this.pushAnnouncement("Fuel critical. Find a station now.", "danger", 3.2);
       return;
     }
 
     if (this.taxi.fuel <= 35 && this.fuelWarningStage < 1) {
       this.fuelWarningStage = 1;
+      this.lowFuelAlarmCooldown = 0;
       this.pushAnnouncement("Fuel reserve below 35%.", "warn", 2.6);
       return;
     }
 
     if (this.taxi.fuel > 55) {
       this.fuelWarningStage = 0;
+      this.lowFuelAlarmCooldown = 0;
     }
+  }
+
+  private updateLowFuelAlarm() {
+    if (this.mode !== "playing" || this.lowFuelAlarmCooldown > 0 || this.taxi.fuel > 35) {
+      return;
+    }
+
+    const currentPad = this.getPadById(this.taxi.landedPadId);
+    if (currentPad?.fuelStation && this.taxi.fuel < MAX_FUEL) {
+      return;
+    }
+
+    if (this.taxi.fuel <= 15) {
+      this.playTone(920, 0.09, "square", 0.03, 760);
+      this.playTone(760, 0.12, "square", 0.026, 620, 0.14);
+      this.lowFuelAlarmCooldown = 1.1;
+      return;
+    }
+
+    this.playTone(720, 0.08, "square", 0.022, 620);
+    this.playTone(620, 0.1, "square", 0.018, 520, 0.16);
+    this.lowFuelAlarmCooldown = 2.2;
   }
 
   private updateRefuelPad(pad: Pad, dt: number) {
@@ -1700,7 +1743,9 @@ class Game {
       : `Airborne | Gear ${this.isGearExtended() ? "down" : "up"}`;
     const leadAnnouncement = this.announcements[0]?.text ?? "Scanner nominal.";
     const fuelCopy = currentPad?.fuelStation
-      ? `${formatFuel(this.taxi.fuel)} | Fuel station online`
+      ? this.taxi.fuel < MAX_FUEL
+        ? `${formatFuel(this.taxi.fuel)} | Auto-refueling on teal pad`
+        : `${formatFuel(this.taxi.fuel)} | Fuel pad ready`
       : `${formatFuel(this.taxi.fuel)} remaining`;
 
     this.scannerEl.innerHTML = `
@@ -1733,8 +1778,8 @@ class Game {
       this.mode === "gameover"
         ? "Enter 3 initials, uplink your run, then relaunch."
         : currentPad?.fuelStation && this.taxi.fuel < MAX_FUEL
-          ? `Fuel station engaged. Fuel costs ${FUEL_COST_PER_UNIT} credits per unit.`
-          : "Arrow keys or WASD to thrust. Hold Down, Shift, S, or the Descent button for landing gear and soft descent.";
+          ? `Auto-refueling on this teal pad. Stay docked and spend ${FUEL_COST_PER_UNIT} credits per fuel unit.`
+          : `Arrow keys or WASD to thrust. Land on teal-lit pads and stay docked to auto-refuel.`;
 
     this.scoreFormEl.hidden = this.mode !== "gameover";
     this.relaunchButtonEl.hidden = this.mode === "playing";
@@ -2414,7 +2459,8 @@ class Game {
       const lines = [
         "Tiny taxi, huge colony. Pick up stranded colonists and roof-hop the skyline.",
         "Arrow keys or WASD: thrust. Hold Down, Shift, S, or the Descent button to deploy gear and soften descent.",
-        "Storm warnings turn into forced landings. Fuel burns under thrust and stations charge for refills.",
+        "Fuel burns under thrust. Land on teal-lit pads and stay docked to auto-refuel using score credits.",
+        "Storm warnings turn into forced landings, so plan your fuel stops before the weather closes in.",
         "Amber markers are waiting fares. Cyan marker is your live dropoff.",
         "Phobos and Deimos track above the colony while fuel stations glow teal.",
         "Press Enter or click the field to launch.",
