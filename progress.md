@@ -31,6 +31,8 @@ Update 2026-03-06:
 - Added overall run grading to the game-over flow plus a retry action inside the modal.
 - Clarified fuel onboarding with explicit attract/HUD copy that teal-lit pads auto-refuel while docked and spend score credits.
 - Added a throttled low-fuel alarm plus a distinct out-of-fuel warning tone using the existing Web Audio path.
+- Rebalanced pacing so the run opens with one fare, keeps the first trip as a single active job, then ramps fare concurrency up over later deliveries.
+- Reduced thrust fuel burn across lift, lateral thrust, and descent assist for longer early flights.
 
 Validation 2026-03-06:
 - `npm run build --workspace client` OK
@@ -40,6 +42,9 @@ Validation 2026-03-06:
 - Forced game-over modal capture (`output/gameover-modal-after.png`) OK
 - Fuel instructions attract capture (`output/web-game-fuel-instructions/shot-0.png`, `state-0.json`) OK
 - Long-thrust low-fuel pass (`output/web-game-low-fuel/shot-0.png`, `state-0.json`) OK
+- Opening single-fare capture (`output/web-game-start-fare-tuning/shot-0.png`, `state-0.json`) OK
+- First-trip single-job capture (`output/web-game-fare-ramp/shot-0.png`, `state-0.json`) OK
+- Lower fuel-burn flight sample (`output/web-game-fuel-tuning/shot-0.png`, `state-0.json`) OK
 
 TODO:
 - Manually flight-test at least one mid-deck landing from a natural approach; the geometry and collision path are fixed in code, but I did not complete a clean live landing during this handoff.

@@ -1320,9 +1320,12 @@ class Game {
 
   private targetWaitingFares() {
     if (this.deliveriesCompleted <= 0) {
-      return 1;
+      return this.onboardFare ? 0 : 1;
     }
     if (this.deliveriesCompleted <= 2) {
+      return 1;
+    }
+    if (this.deliveriesCompleted <= 5) {
       return 2;
     }
     return 3;
